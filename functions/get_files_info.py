@@ -3,24 +3,22 @@ import os
 
 def get_files_info(working_directory, directory="."):
     # Get absolute path for the given directory
-    full_path = os.path.join(working_directory, directory)
-    print(working_directory)
-    print(directory)
-    print(full_path)
+    abs_working = os.path.abspath(working_directory)
+    abs_target = os.path.abspath(os.path.join(abs_working, directory))
     
-    # Make sure directory is a valid directory
-    if not os.path.isdir(full_path):
-        return f'Error: "{directory}" is not a directory'
-
     # Make sure the directory is within the working directory
-    if not full_path.startswith(working_directory) or directory == "../":
+    if not (abs_target.startswith(abs_working + os.sep) or abs_target == abs_working):
         return f'Error: Cannot list "{directory}" as it is outside the permitted working directory\n'
     
+    # Make sure directory is a valid directory
+    if not os.path.isdir(abs_target):
+        return f'Error: "{directory}" is not a directory\n'
+
     # Get the contents of the directory
-    contents_list = os.listdir(full_path)
+    contents_list = os.listdir(abs_target)
     return_string = ""
     for item in contents_list:
-        item_path = os.path.join(full_path, item)
+        item_path = os.path.join(abs_target, item)
         item_name = item
         item_size = os.path.getsize(item_path)
         item_is_dir = os.path.isdir(item_path)
