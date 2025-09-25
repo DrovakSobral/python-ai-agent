@@ -1,15 +1,32 @@
 import os
+from google import genai
+from google.genai import types
+
+
+schema_get_files_info = types.FunctionDeclaration(
+    name="get_files_info",
+    description="Lists files in the specified directory (or working directory if omitted) along with their sizes and directory flags, constrained to the working directory.",
+    parameters=types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "directory": types.Schema(
+                type=types.Type.STRING,
+                description="The directory to list files from, relative to the working directory. If not provided, lists files in the working directory itself.",
+            ),
+        },
+    ),
+)
 
 
 def get_files_info(working_directory, directory="."):
     # Get absolute path for the given directory
     abs_working = os.path.abspath(working_directory)
     abs_target = os.path.abspath(os.path.join(abs_working, directory))
-    
+
     # Make sure the directory is within the working directory
     if not (abs_target.startswith(abs_working + os.sep) or abs_target == abs_working):
         return f'Error: Cannot list "{directory}" as it is outside the permitted working directory\n'
-    
+
     # Make sure directory is a valid directory
     if not os.path.isdir(abs_target):
         return f'Error: "{directory}" is not a directory\n'
@@ -22,5 +39,7 @@ def get_files_info(working_directory, directory="."):
         item_name = item
         item_size = os.path.getsize(item_path)
         item_is_dir = os.path.isdir(item_path)
-        return_string += f" - {item_name}: file_size={item_size} bytes, is_dir={item_is_dir}\n"
+        return_string += (
+            f" - {item_name}: file_size={item_size} bytes, is_dir={item_is_dir}\n"
+        )
     return return_string
