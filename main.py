@@ -97,31 +97,47 @@ client = genai.Client(api_key=api_key)
 # List to store roles and messages for the AI Agent
 messages_list = [types.Content(role="user", parts=[types.Part(text=user_prompt)])]
 
-# Make the API call
-response = client.models.generate_content(
-    model="gemini-2.0-flash-001",
-    contents=messages_list,
-    config=types.GenerateContentConfig(
-        system_instruction=system_prompt, tools=[available_funcs]
-    ),
-)
+# Main logic loop
+for iteration in range(0,20):
+    # Make the API call
+    response = client.models.generate_content(
+        model="gemini-2.0-flash-001",
+        contents=messages_list,
+        config=types.GenerateContentConfig(
+            system_instruction=system_prompt, tools=[available_funcs]
+        ),
+    )
 
-# Print answer to console as well as details if the verbose arg was given
-if response.function_calls:
-    for call in response.function_calls:
-        function_call_result = call_function(call, verbose_arg)
+    # Check the response for the .candidates property and add it to the messages list
+    if response.candidates:
+        for candidate in response.candidates:
+            messages_list.append(candidate.content)
 
-        call_response = None
-        if function_call_result.parts and function_call_result.parts[0].function_response:
-                call_response = function_call_result.parts[0].function_response.response
 
-        if not call_response:
-            raise Exception("function_call_result.parts[0].function_response.response is empty")
-        
+    # Print answer to console as well as details if the verbose arg was given
+    if response.function_calls:
+        for call in response.function_calls:
+            function_call_result = call_function(call, verbose_arg)
+
+            call_response = None
+            if function_call_result.parts and function_call_result.parts[0].function_response:
+                    call_response = function_call_result.parts[0].function_response.response
+
+            if not call_response:
+                raise Exception("function_call_result.parts[0].function_response.response is empty")
+
+            if verbose_arg:
+                print(f"-> {call_response}")
+
+            # Append the result of the function call to the message list
+            messages_list.append(function_call_result)
         if verbose_arg:
-            print(f"-> {call_response}")
-else:
-    print(f"User prompt: {response.text}")
-if verbose_arg:
-    print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
-    print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
+            print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
+            print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
+    elif response.text:
+        print(f"User prompt: {response.text}")
+        if verbose_arg:
+            print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
+            print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
+        break
+print("End of the 20 iterations for the AI Agent")
