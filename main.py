@@ -3,12 +3,54 @@ import sys
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
-from functions.get_files_info import schema_get_files_info
-from functions.get_file_content import schema_get_file_content
-from functions.write_file import schema_write_file
-from functions.run_python_file import schema_run_python_file
+from functions.get_files_info import schema_get_files_info, get_files_info
+from functions.get_file_content import schema_get_file_content, get_file_content
+from functions.write_file import schema_write_file, write_file
+from functions.run_python_file import schema_run_python_file, run_python_file
 
-# Set the system prompt for the ai agent so it knows how to behave
+
+# Function that allows the AI Agent to call other functions
+def call_function(function_call: types.FunctionCall, verbose=False):
+    if verbose:
+        print(f"Calling function: {function_call.name}({function_call.args})")
+    else:
+        print(f" - Calling function: {function_call.name}")
+    
+    # Working directory is a constant for security reasons so as to ensure that the AI Agent doesn't fuck up the machine it is running if it hallucinates
+    WORKING_DIRECTORY = "./calculator"
+    # Check the function that the agent is calling. If it is a valid one, call it, else we return an error
+    match function_call.name:
+        case "get_files_info":
+            result = get_files_info(working_directory=WORKING_DIRECTORY, **function_call.args)
+        case "get_file_content":
+            result = get_file_content(working_directory=WORKING_DIRECTORY, **function_call.args)
+        case "write_file":
+            result = write_file(working_directory=WORKING_DIRECTORY, **function_call.args)
+        case "run_python_file":
+            result = run_python_file(working_directory=WORKING_DIRECTORY, **function_call.args)
+        case _:
+            return types.Content(
+                role="tool",
+                parts=[
+                    types.Part.from_function_response(
+                        name=function_call.name,
+                        response={"error": f"Unknown function: {function_call.name}"},
+                    )
+                ],
+            )
+    
+    # Return the result of the function call
+    return types.Content(
+        role="tool",
+        parts=[
+            types.Part.from_function_response(
+                name=function_call.name,
+                response={"result": result},
+            )
+        ],
+    )
+
+# Set the system prompt for the AI Agent so it knows how to behave
 system_prompt = """
 You are a helpful AI coding agent.
 
@@ -20,6 +62,9 @@ When a user asks a question or makes a request, make a function call plan. You c
 - Write or overwrite files
 
 All paths you provide should be relative to the working directory. You do not need to specify the working directory in your function calls as it is automatically injected for security reasons.
+
+
+If the user requests any of list/read/write/execute, you must respond only with a function call using the provided tools. Do not ask for more info if the intent is clear.
 """
 
 # List of available functions for the AI Agent to use
@@ -64,7 +109,17 @@ response = client.models.generate_content(
 # Print answer to console as well as details if the verbose arg was given
 if response.function_calls:
     for call in response.function_calls:
-        print(f"Calling function: {call.name}({call.args})")
+        function_call_result = call_function(call, verbose_arg)
+
+        call_response = None
+        if function_call_result.parts and function_call_result.parts[0].function_response:
+                call_response = function_call_result.parts[0].function_response.response
+
+        if not call_response:
+            raise Exception("function_call_result.parts[0].function_response.response is empty")
+        
+        if verbose_arg:
+            print(f"-> {call_response}")
 else:
     print(f"User prompt: {response.text}")
 if verbose_arg:
